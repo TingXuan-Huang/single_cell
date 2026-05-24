@@ -34,6 +34,11 @@ DEFAULT_METADATA_COLS: tuple[str, ...] = (
     "library_method",
 )
 
+REQUIRED_METADATA_COLS: tuple[str, ...] = (
+    "donor_label",
+    "subclass",
+)
+
 
 def _normalize_cell_label(values) -> pd.Index:
     """Normalize Allen cell labels across h5ad index variants."""
@@ -136,13 +141,15 @@ def attach_cell_metadata_csv(
 
     joined = sub.reindex(best_keys)
     if drop_unmatched:
-        matched_mask = joined.notna().all(axis=1).to_numpy()
+        required_cols = [c for c in REQUIRED_METADATA_COLS if c in joined.columns]
+        if not required_cols:
+            required_cols = keep_cols
+        matched_mask = joined[required_cols].notna().all(axis=1).to_numpy()
         n_drop = int((~matched_mask).sum())
         if n_drop > 0:
             logger.warning(
-                "Dropping %d / %d cells with missing metadata (likely "
-                "filtered out of the Allen cluster annotation).",
-                n_drop, adata.n_obs,
+                "Dropping %d / %d cells missing required metadata columns %s.",
+                n_drop, adata.n_obs, required_cols,
             )
             adata = adata[matched_mask].copy()
             joined = joined.loc[matched_mask]
