@@ -15,7 +15,9 @@
 # configs/experiment/main_grid.yaml). GPU is optional but ~10x faster on A40.
 
 set -euo pipefail
-source "$(dirname "$0")/_common.sh"
+: "${PROJECT_ROOT:=${SLURM_SUBMIT_DIR:-$(pwd)}}"
+SLURM_DIR="$PROJECT_ROOT/slurm"
+source "$SLURM_DIR/_common.sh"
 cd "$PROJECT_ROOT"
 
 CACHE_DIR="${CACHE_DIR:-/gscratch/${SLURM_JOB_ACCOUNT}/data/cache/wmb_isocortex_v1}"

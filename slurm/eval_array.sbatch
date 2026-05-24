@@ -13,8 +13,10 @@
 #SBATCH --error=logs/eval_%A_%a.err
 
 set -euo pipefail
-source "$(dirname "$0")/_common.sh"
-source "$(dirname "$0")/_runs.sh"
+: "${PROJECT_ROOT:=${SLURM_SUBMIT_DIR:-$(pwd)}}"
+SLURM_DIR="$PROJECT_ROOT/slurm"
+source "$SLURM_DIR/_common.sh"
+source "$SLURM_DIR/_runs.sh"
 cd "$PROJECT_ROOT"
 
 CACHE_DIR="${CACHE_DIR:-/gscratch/${SLURM_JOB_ACCOUNT}/data/cache/wmb_isocortex_v1}"

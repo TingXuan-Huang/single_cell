@@ -13,7 +13,9 @@
 # Preprocess the downloaded H5AD -> sparse cache shards.
 
 set -euo pipefail
-source "$(dirname "$0")/_common.sh"
+: "${PROJECT_ROOT:=${SLURM_SUBMIT_DIR:-$(pwd)}}"
+SLURM_DIR="$PROJECT_ROOT/slurm"
+source "$SLURM_DIR/_common.sh"
 cd "$PROJECT_ROOT"
 
 DATA_CFG="${DATA_CFG:-configs/data/wmb_isocortex.yaml}"

@@ -11,7 +11,9 @@
 #SBATCH --error=logs/compare_%j.err
 
 set -euo pipefail
-source "$(dirname "$0")/_common.sh"
+: "${PROJECT_ROOT:=${SLURM_SUBMIT_DIR:-$(pwd)}}"
+SLURM_DIR="$PROJECT_ROOT/slurm"
+source "$SLURM_DIR/_common.sh"
 cd "$PROJECT_ROOT"
 
 OUT_ROOT="${OUT_ROOT:-/gscratch/${SLURM_JOB_ACCOUNT}/runs/cellfm/v1}"
