@@ -22,6 +22,10 @@ if [[ -f "$VENV_DIR/bin/activate" ]]; then
   # shellcheck disable=SC1091
   source "$VENV_DIR/bin/activate"
   echo "[hyak] activated venv: $VENV_DIR"
+elif [[ -x "$VENV_DIR/bin/python" && -d "$VENV_DIR/conda-meta" ]]; then
+  export CONDA_PREFIX="$VENV_DIR"
+  export PATH="$VENV_DIR/bin:$PATH"
+  echo "[hyak] activated conda prefix via VENV_DIR: $VENV_DIR"
 elif [[ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]]; then
   # shellcheck disable=SC1091
   source "$HOME/miniconda3/etc/profile.d/conda.sh"
