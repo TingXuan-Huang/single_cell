@@ -11,6 +11,7 @@ set -euo pipefail
 : "${WANDB_PROJECT:=cellfm-v1}"
 : "${HF_HOME:=$PROJECT_ROOT/.hf_cache}"
 : "${PYTHONUNBUFFERED:=1}"
+: "${PYTHONNOUSERSITE:=1}"
 
 # --- Module + python env ---------------------------------------------------
 module purge || true
@@ -40,7 +41,7 @@ else
   echo "[hyak] WARNING: no venv at $VENV_DIR and no conda found; using system python." >&2
 fi
 
-export PROJECT_ROOT WANDB_PROJECT HF_HOME PYTHONUNBUFFERED
+export PROJECT_ROOT WANDB_PROJECT HF_HOME PYTHONUNBUFFERED PYTHONNOUSERSITE
 export PYTHONPATH="$PROJECT_ROOT/src:${PYTHONPATH:-}"
 
 echo "[hyak] PROJECT_ROOT=$PROJECT_ROOT"

@@ -30,8 +30,30 @@ DEFAULT_METADATA_COLS: tuple[str, ...] = (
     "class",
     "cluster",
     "region_of_interest_label",
+    "region_of_interest_acronym",
     "library_method",
 )
+
+
+def _normalize_cell_label(values) -> pd.Index:
+    """Normalize Allen cell labels across h5ad index variants."""
+    idx = pd.Index(values).astype(str)
+    # anndata.concat(index_unique="-") appends "-<shard key>" to duplicated
+    # obs names. Allen cell labels themselves do not contain slashes, while the
+    # shard key is a full path in this pipeline.
+    idx = idx.str.replace(r"-/.*$", "", regex=True)
+    return idx.str.replace(r"\.0$", "", regex=True)
+
+
+def _candidate_obs_keys(adata: ad.AnnData, preferred: str) -> dict[str, pd.Index]:
+    candidates: dict[str, pd.Index] = {}
+    if preferred in adata.obs.columns:
+        candidates[f"obs.{preferred}"] = _normalize_cell_label(adata.obs[preferred])
+    for col in ("cell_label", "cell_id", "cell_barcode", "barcode"):
+        if col in adata.obs.columns and f"obs.{col}" not in candidates:
+            candidates[f"obs.{col}"] = _normalize_cell_label(adata.obs[col])
+    candidates["obs.index"] = _normalize_cell_label(adata.obs.index)
+    return candidates
 
 
 def attach_cell_metadata_csv(
@@ -64,14 +86,9 @@ def attach_cell_metadata_csv(
     meta = pd.read_csv(csv_path)
     logger.info("Loaded cell metadata: %d rows, %d cols", len(meta), meta.shape[1])
 
-    # Resolve which column to join on.
-    if on in adata.obs.columns:
-        keys = adata.obs[on].astype(str).to_numpy()
-    else:
-        keys = adata.obs.index.astype(str).to_numpy()
     if on not in meta.columns:
         # Try to find a sensible fallback in the CSV.
-        for cand in ("cell_label", "cell_id", "barcode"):
+        for cand in ("cell_label", "cell_id", "cell_barcode", "barcode"):
             if cand in meta.columns:
                 meta = meta.rename(columns={cand: on})
                 break
@@ -93,10 +110,31 @@ def attach_cell_metadata_csv(
         )
         keep_cols = [c for c in keep_cols if c in meta.columns]
     sub = meta[[on, *keep_cols]].copy()
+    sub[on] = _normalize_cell_label(sub[on])
     sub = sub.drop_duplicates(subset=[on])
     sub = sub.set_index(on)
 
-    joined = sub.reindex(keys)
+    candidates = _candidate_obs_keys(adata, on)
+    best_name = ""
+    best_keys = None
+    best_matches = -1
+    for name, keys in candidates.items():
+        matches = int(keys.isin(sub.index).sum())
+        logger.info("Metadata join candidate %s matched %d / %d cells", name, matches, adata.n_obs)
+        if matches > best_matches:
+            best_name = name
+            best_keys = keys
+            best_matches = matches
+    if best_keys is None or best_matches == 0:
+        raise RuntimeError(
+            "Allen metadata join matched 0 cells. "
+            f"Tried {list(candidates)} against metadata column '{on}'. "
+            f"Example obs index: {list(adata.obs.index[:3].astype(str))}; "
+            f"example metadata labels: {list(sub.index[:3].astype(str))}."
+        )
+    logger.info("Using metadata join key %s (%d / %d matched)", best_name, best_matches, adata.n_obs)
+
+    joined = sub.reindex(best_keys)
     if drop_unmatched:
         matched_mask = joined.notna().all(axis=1).to_numpy()
         n_drop = int((~matched_mask).sum())
