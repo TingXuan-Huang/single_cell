@@ -88,23 +88,21 @@ class ValueBinTransformer(nn.Module):
         mlm_val_loss = torch.tensor(0.0, device=h.device)
 
         if "mlm_gene_targets" in batch:
-            g_logits = self._gene_logits(h)
-            B, L, V = g_logits.shape
-            mlm_gene_loss = F.cross_entropy(
-                g_logits.reshape(B * L, V),
-                batch["mlm_gene_targets"].reshape(B * L),
-                ignore_index=-100,
-            )
+            g_targets = batch["mlm_gene_targets"]
+            g_masked = g_targets != -100
+            if g_masked.any():
+                # Avoid materializing (B, L, gene_vocab), which is tens of GiB
+                # for Allen-scale vocabularies at L=2048.
+                g_logits = self._gene_logits(h[g_masked])
+                mlm_gene_loss = F.cross_entropy(g_logits, g_targets[g_masked])
             out["mlm_gene_loss"] = mlm_gene_loss
 
         if "mlm_value_targets" in batch:
-            v_logits = self.mlm_value_head(h)
-            B, L, Vb = v_logits.shape
-            mlm_val_loss = F.cross_entropy(
-                v_logits.reshape(B * L, Vb),
-                batch["mlm_value_targets"].reshape(B * L),
-                ignore_index=-100,
-            )
+            v_targets = batch["mlm_value_targets"]
+            v_masked = v_targets != -100
+            if v_masked.any():
+                v_logits = self.mlm_value_head(h[v_masked])
+                mlm_val_loss = F.cross_entropy(v_logits, v_targets[v_masked])
             out["mlm_value_loss"] = mlm_val_loss
 
         out["loss"] = (

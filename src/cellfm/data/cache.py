@@ -139,7 +139,12 @@ class CellShardDataset:
             raise RuntimeError(
                 f"'label' column not in {split}_obs.parquet. Re-run write_cache."
             )
-        self.labels = self.obs["label"].to_numpy().astype(np.int64)
+        self.labels = (
+            pd.to_numeric(self.obs["label"], errors="coerce")
+            .fillna(-100)
+            .to_numpy()
+            .astype(np.int64)
+        )
         if self.X.shape[0] != self.labels.shape[0]:
             raise RuntimeError(
                 f"Shape mismatch: X has {self.X.shape[0]} rows, obs has {self.labels.shape[0]}"

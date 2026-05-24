@@ -85,13 +85,13 @@ class RankTransformer(nn.Module):
 
         mlm_loss = torch.tensor(0.0, device=h.device)
         if "mlm_targets" in batch:
-            mlm_logits = self._mlm_logits(h)              # (B, L, V)
-            B, L, V = mlm_logits.shape
-            mlm_loss = F.cross_entropy(
-                mlm_logits.reshape(B * L, V),
-                batch["mlm_targets"].reshape(B * L),
-                ignore_index=-100,
-            )
+            mlm_targets = batch["mlm_targets"]
+            masked = mlm_targets != -100
+            if masked.any():
+                # Full (B, L, V) logits are too large for Allen-scale vocabularies.
+                # Compute the tied softmax only at masked positions.
+                mlm_logits = self._mlm_logits(h[masked])
+                mlm_loss = F.cross_entropy(mlm_logits, mlm_targets[masked])
             out["mlm_loss"] = mlm_loss
 
         out["loss"] = self.cfg.ce_weight * ce_loss + self.cfg.mlm_weight * mlm_loss

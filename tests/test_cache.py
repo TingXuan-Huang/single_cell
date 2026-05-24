@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import shutil
+
+import pandas as pd
+
 from cellfm.data.cache import CacheManifest, CellShardDataset
 
 
@@ -21,3 +25,17 @@ def test_cell_shard_dataset_getitem(synthetic_cache):
     assert isinstance(item["label"], int)
     # Nonzero genes only
     assert item["gene_idx"].size == item["values"].size
+
+
+def test_cell_shard_dataset_converts_nullable_labels_to_ignore_index(synthetic_cache, tmp_path):
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir()
+    for name in ("manifest.json", "train_X.npz"):
+        shutil.copy(synthetic_cache / name, cache_dir / name)
+    obs = pd.read_parquet(synthetic_cache / "train_obs.parquet")
+    obs.loc[obs.index[0], "label"] = pd.NA
+    obs.to_parquet(cache_dir / "train_obs.parquet")
+
+    ds = CellShardDataset(cache_dir, split="train")
+
+    assert ds.labels[0] == -100

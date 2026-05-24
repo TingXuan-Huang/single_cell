@@ -60,6 +60,29 @@ def test_rank_transformer_forward_backward(synthetic_cache):
     out["loss"].backward()
 
 
+def test_rank_transformer_mlm_logits_only_masked_positions(synthetic_cache):
+    from cellfm.data.cache import CacheManifest
+    m = CacheManifest.from_json(synthetic_cache / "manifest.json")
+    tok = RankTokenizer(TokenizerConfig(n_genes=m.n_genes, L=m.L,
+                                        mask_ratio=0.15, add_cls=True))
+    batch, _ = _batch(synthetic_cache, tok)
+    model = build_model(encoder="rank", size="tiny_1m",
+                        n_genes=m.n_genes, n_classes=len(m.label_vocab),
+                        L=m.L, gene_vocab_size=tok.gene_vocab_size)
+    orig = model._mlm_logits
+    seen = {}
+
+    def wrapped(h):
+        seen["shape"] = tuple(h.shape)
+        return orig(h)
+
+    model._mlm_logits = wrapped
+    out = model(batch)
+    assert "loss" in out
+    assert len(seen["shape"]) == 2
+    assert seen["shape"][0] == int((batch["mlm_targets"] != -100).sum())
+
+
 def test_value_bin_transformer_forward_backward(synthetic_cache):
     from cellfm.data.cache import CacheManifest
     m = CacheManifest.from_json(synthetic_cache / "manifest.json")
@@ -74,6 +97,31 @@ def test_value_bin_transformer_forward_backward(synthetic_cache):
     out = model(batch)
     assert "loss" in out
     out["loss"].backward()
+
+
+def test_value_bin_transformer_gene_logits_only_masked_positions(synthetic_cache):
+    from cellfm.data.cache import CacheManifest
+    m = CacheManifest.from_json(synthetic_cache / "manifest.json")
+    tok = ValueBinTokenizer(TokenizerConfig(n_genes=m.n_genes, L=m.L,
+                                            mask_ratio=0.15, add_cls=True))
+    batch, _ = _batch(synthetic_cache, tok)
+    model = build_model(encoder="value_bin", size="tiny_1m",
+                        n_genes=m.n_genes, n_classes=len(m.label_vocab),
+                        L=m.L,
+                        gene_vocab_size=tok.gene_vocab_size,
+                        value_vocab_size=tok.value_vocab_size)
+    orig = model._gene_logits
+    seen = {}
+
+    def wrapped(h):
+        seen["shape"] = tuple(h.shape)
+        return orig(h)
+
+    model._gene_logits = wrapped
+    out = model(batch)
+    assert "loss" in out
+    assert len(seen["shape"]) == 2
+    assert seen["shape"][0] == int((batch["mlm_gene_targets"] != -100).sum())
 
 
 def test_count_params_separates_embedding_table(synthetic_cache):
