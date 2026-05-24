@@ -111,7 +111,9 @@ class Trainer:
         batch = _move_to(batch, self.device)
         self.optimizer.zero_grad(set_to_none=True)
 
+        optimizer_stepped = True
         if self.scaler is not None:
+            scale_before = self.scaler.get_scale()
             with torch.amp.autocast("cuda"):
                 out = self.model(batch)
                 loss = out["loss"]
@@ -120,13 +122,15 @@ class Trainer:
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.cfg.grad_clip)
             self.scaler.step(self.optimizer)
             self.scaler.update()
+            optimizer_stepped = self.scaler.get_scale() >= scale_before
         else:
             out = self.model(batch)
             loss = out["loss"]
             loss.backward()
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.cfg.grad_clip)
             self.optimizer.step()
-        self.scheduler.step()
+        if optimizer_stepped:
+            self.scheduler.step()
 
         metrics = {k: float(v.detach()) if isinstance(v, torch.Tensor) else float(v)
                    for k, v in out.items() if k != "embedding" and k != "logits"}

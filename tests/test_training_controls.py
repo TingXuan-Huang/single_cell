@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import warnings
 
 import pytest
 import torch
@@ -25,8 +26,75 @@ class ScriptedValidationModel(nn.Module):
         return {"loss": self.weight.new_tensor(self.val_losses[idx])}
 
 
+class FakeCudaScaler:
+    def __init__(self, *, skip_step: bool):
+        self.skip_step = skip_step
+        self.scale_value = 128.0
+        self.optimizer_steps = 0
+
+    def get_scale(self) -> float:
+        return self.scale_value
+
+    def scale(self, loss: torch.Tensor) -> torch.Tensor:
+        return loss
+
+    def unscale_(self, optimizer) -> None:
+        return None
+
+    def step(self, optimizer) -> None:
+        if not self.skip_step:
+            optimizer.step()
+            self.optimizer_steps += 1
+
+    def update(self) -> None:
+        if self.skip_step:
+            self.scale_value /= 2.0
+
+
+class CountingScheduler:
+    def __init__(self):
+        self.steps = 0
+
+    def step(self) -> None:
+        self.steps += 1
+
+    def state_dict(self) -> dict:
+        return {"steps": self.steps}
+
+
 def _loader(n_batches: int = 1) -> DataLoader:
     return DataLoader([{"x": torch.tensor([i])} for i in range(n_batches)], batch_size=None)
+
+
+@pytest.mark.parametrize("skip_step, expected_scheduler_steps", [(True, 0), (False, 1)])
+def test_amp_scheduler_steps_only_after_optimizer_step(tmp_path, skip_step, expected_scheduler_steps):
+    model = ScriptedValidationModel([1.0])
+    cfg = TrainConfig(
+        out_dir=tmp_path / "run",
+        encoder="dummy",
+        size="tiny",
+        n_steps=1,
+        warmup_steps=0,
+        lr=0.1,
+        amp=False,
+    )
+    trainer = Trainer(
+        model=model,
+        loaders={"train": _loader(), "val": _loader()},
+        cfg=cfg,
+        device=torch.device("cpu"),
+    )
+    fake_scaler = FakeCudaScaler(skip_step=skip_step)
+    scheduler = CountingScheduler()
+    trainer.scaler = fake_scaler
+    trainer.scheduler = scheduler
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        trainer._step({})
+
+    assert scheduler.steps == expected_scheduler_steps
+    assert fake_scaler.optimizer_steps == expected_scheduler_steps
 
 
 def test_periodic_checkpoints_and_early_stopping(tmp_path):
