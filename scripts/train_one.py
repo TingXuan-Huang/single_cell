@@ -107,6 +107,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--early-stopping-min-delta", type=float, default=None)
     p.add_argument("--lr", type=float, default=None)
     p.add_argument("--seed", type=int, default=None)
+    p.add_argument("--resume-from", type=Path, default=None)
     p.add_argument("--num-workers", type=int, default=2)
     p.add_argument("--wandb-project", type=str, default=None)
     args = p.parse_args(argv)
@@ -154,6 +155,7 @@ def main(argv: list[str] | None = None) -> int:
         num_workers=args.num_workers,
         eval_batch_size=int(train_cfg.get("eval_batch_size", train_cfg.get("batch_size", 128))),
         drop_last=True,
+        mask_eval_splits=True,
     )
 
     # Train
@@ -177,7 +179,11 @@ def main(argv: list[str] | None = None) -> int:
         seed=int(train_cfg.get("seed", 0)),
         wandb_project=train_cfg.get("wandb_project"),
         wandb_run_name=run_id,
-        extras={"param_counts": pcounts, "run_id": run_id},
+        extras={
+            "param_counts": pcounts,
+            "run_id": run_id,
+            "resume_from": str(args.resume_from) if args.resume_from else None,
+        },
     )
 
     # Persist resolved configs for reproducibility BEFORE training
@@ -201,6 +207,8 @@ def main(argv: list[str] | None = None) -> int:
         (out_dir / "vram_probe.json").write_text(json.dumps(stats, indent=2))
 
     trainer = Trainer(model=model, loaders=loaders, cfg=tcfg)
+    if args.resume_from is not None:
+        trainer.load_checkpoint(args.resume_from)
     trainer.fit()
 
     # Save HVG indices for downstream eval (PCA baseline, etc.)

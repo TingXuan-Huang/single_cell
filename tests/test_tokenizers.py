@@ -11,6 +11,7 @@ from cellfm.tokenizers.embedding_bag import EmbeddingBagTokenizer
 from cellfm.tokenizers.hvg_dense import HVGDenseTokenizer
 from cellfm.tokenizers.rank import RankTokenizer
 from cellfm.tokenizers.value_bin import ValueBinTokenizer
+from cellfm.training import build_dataloaders
 
 
 def _items(cache_dir, k=8):
@@ -83,3 +84,37 @@ def test_eval_mode_disables_masking(synthetic_cache):
     assert (b_eval["mlm_targets"].numpy() == -100).all()
     # train mode produces real targets
     assert (b_train["mlm_targets"].numpy() != -100).any()
+
+
+def test_training_validation_loader_can_mask_eval_splits(synthetic_cache):
+    items, manifest = _items(synthetic_cache)
+    cfg = TokenizerConfig(
+        n_genes=manifest.n_genes,
+        L=manifest.L,
+        n_bins=51,
+        mask_ratio=0.5,
+        add_cls=True,
+    )
+    tok = ValueBinTokenizer(cfg)
+    loaders = build_dataloaders(
+        synthetic_cache,
+        tok,
+        batch_size=len(items),
+        num_workers=0,
+        mask_eval_splits=True,
+    )
+    val_batch = next(iter(loaders["val"]))
+    assert (val_batch["mlm_gene_targets"].numpy() != -100).any()
+    assert (val_batch["mlm_value_targets"].numpy() != -100).any()
+
+    eval_loaders = build_dataloaders(
+        synthetic_cache,
+        tok,
+        batch_size=len(items),
+        num_workers=0,
+        eval_mode=True,
+        mask_eval_splits=True,
+    )
+    eval_val_batch = next(iter(eval_loaders["val"]))
+    assert (eval_val_batch["mlm_gene_targets"].numpy() == -100).all()
+    assert (eval_val_batch["mlm_value_targets"].numpy() == -100).all()

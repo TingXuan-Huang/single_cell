@@ -35,6 +35,15 @@ ENCODER=${ENCODERS[$idx]}
 SIZE=${SIZES[$idx]}
 RUN_ID=${RUN_IDS[$idx]}
 BATCH_SIZE=$(batch_size_for_size "$SIZE")
+TRAIN_EXTRA_ARGS=()
+if [[ -n "${N_STEPS:-}" ]]; then
+  TRAIN_EXTRA_ARGS+=(--n-steps "$N_STEPS")
+fi
+if [[ -n "${RESUME_FROM:-}" ]]; then
+  TRAIN_EXTRA_ARGS+=(--resume-from "$RESUME_FROM")
+elif [[ -n "${RESUME_ROOT:-}" ]]; then
+  TRAIN_EXTRA_ARGS+=(--resume-from "$RESUME_ROOT/$RUN_ID/final.pt")
+fi
 
 echo "[hyak] array task $idx: encoder=$ENCODER size=$SIZE run_id=$RUN_ID batch_size=$BATCH_SIZE"
 
@@ -47,6 +56,7 @@ python -m scripts.train_one \
   --out-dir "$OUT_ROOT" \
   --batch-size "$BATCH_SIZE" \
   --num-workers 4 \
+  "${TRAIN_EXTRA_ARGS[@]}" \
   --wandb-project "$WANDB_PROJECT"
 
 echo "[hyak] done: $RUN_ID"

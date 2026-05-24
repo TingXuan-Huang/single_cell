@@ -45,6 +45,7 @@ def build_dataloaders(
     eval_batch_size: int | None = None,
     drop_last: bool = True,
     eval_mode: bool = False,
+    mask_eval_splits: bool = False,
 ) -> dict[str, DataLoader]:
     """Build {'train','val','test'} DataLoaders sharing one tokenizer.
 
@@ -52,6 +53,9 @@ def build_dataloaders(
         eval_mode: if True, the train split is built with shuffle=False and the
             tokenizer's `train=False` flag (no MLM masking), suitable for
             embedding extraction.
+        mask_eval_splits: if True, val/test splits are tokenized with
+            `train=True` so validation includes masked-token objectives. Ignored
+            when eval_mode=True.
     """
     eval_batch_size = eval_batch_size or batch_size
     loaders: dict[str, DataLoader] = {}
@@ -59,8 +63,12 @@ def build_dataloaders(
         inner = CellShardDataset(cache_dir=cache_dir, split=split)
         ds = TorchCellShard(inner)
         is_train_split = split == "train"
-        tokenizer_train = is_train_split and not eval_mode
-        shuffle = is_train_split and not eval_mode
+        if eval_mode:
+            tokenizer_train = False
+            shuffle = False
+        else:
+            tokenizer_train = is_train_split or mask_eval_splits
+            shuffle = is_train_split
         loaders[split] = DataLoader(
             ds,
             batch_size=batch_size if is_train_split else eval_batch_size,

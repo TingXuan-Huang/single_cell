@@ -97,6 +97,86 @@ def test_amp_scheduler_steps_only_after_optimizer_step(tmp_path, skip_step, expe
     assert fake_scaler.optimizer_steps == expected_scheduler_steps
 
 
+def test_resume_checkpoint_continues_to_target_step(tmp_path):
+    model = ScriptedValidationModel([1.0])
+    cfg = TrainConfig(
+        out_dir=tmp_path / "run",
+        encoder="dummy",
+        size="tiny",
+        n_steps=3,
+        eval_every=3,
+        val_max_batches=1,
+        warmup_steps=0,
+        lr=0.0,
+        amp=False,
+        log_every=1,
+    )
+    trainer = Trainer(
+        model=model,
+        loaders={"train": _loader(), "val": _loader()},
+        cfg=cfg,
+        device=torch.device("cpu"),
+    )
+    trainer.fit()
+
+    resumed_model = ScriptedValidationModel([0.9])
+    resumed_cfg = TrainConfig(
+        out_dir=cfg.out_dir,
+        encoder="dummy",
+        size="tiny",
+        n_steps=5,
+        eval_every=5,
+        val_max_batches=1,
+        warmup_steps=0,
+        lr=0.0,
+        amp=False,
+        log_every=1,
+    )
+    resumed = Trainer(
+        model=resumed_model,
+        loaders={"train": _loader(), "val": _loader()},
+        cfg=resumed_cfg,
+        device=torch.device("cpu"),
+    )
+    assert resumed.load_checkpoint(cfg.out_dir / "final.pt") == 3
+    resumed.fit()
+
+    final = torch.load(cfg.out_dir / "final.pt", map_location="cpu")
+    assert final["step"] == 5
+    history = json.loads((cfg.out_dir / "train_history.json").read_text())
+    assert any(rec.get("event") == "resume" and rec.get("step") == 3 for rec in history)
+
+
+def test_resume_requires_larger_target_step(tmp_path):
+    model = ScriptedValidationModel([1.0])
+    cfg = TrainConfig(
+        out_dir=tmp_path / "run",
+        encoder="dummy",
+        size="tiny",
+        n_steps=1,
+        warmup_steps=0,
+        lr=0.0,
+        amp=False,
+    )
+    trainer = Trainer(
+        model=model,
+        loaders={"train": _loader(), "val": _loader()},
+        cfg=cfg,
+        device=torch.device("cpu"),
+    )
+    trainer.fit()
+
+    resumed = Trainer(
+        model=ScriptedValidationModel([1.0]),
+        loaders={"train": _loader(), "val": _loader()},
+        cfg=cfg,
+        device=torch.device("cpu"),
+    )
+    resumed.load_checkpoint(cfg.out_dir / "final.pt")
+    with pytest.raises(ValueError, match="Increase --n-steps"):
+        resumed.fit()
+
+
 def test_periodic_checkpoints_and_early_stopping(tmp_path):
     model = ScriptedValidationModel([1.0, 0.9, 0.91, 0.92, 0.93])
     cfg = TrainConfig(

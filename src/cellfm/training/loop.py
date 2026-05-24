@@ -89,6 +89,7 @@ class Trainer:
         self._best_step = 0
         self._early_stop_best_val = float("inf")
         self._bad_eval_count = 0
+        self._resume_step = 0
         self.cfg.out_dir = Path(cfg.out_dir)
         self.cfg.out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -105,6 +106,38 @@ class Trainer:
                 self.wandb = wandb
             except Exception as e:
                 logger.warning("wandb init failed (%s). Continuing without wandb.", e)
+
+    def load_checkpoint(self, path: Path | str, *, strict: bool = True) -> int:
+        ckpt_path = Path(path)
+        ckpt = torch.load(ckpt_path, map_location=self.device)
+        self.model.load_state_dict(ckpt["model_state_dict"], strict=strict)
+        if "optimizer_state_dict" in ckpt:
+            self.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+        if "scheduler_state_dict" in ckpt:
+            self.scheduler.load_state_dict(ckpt["scheduler_state_dict"])
+        if self.scaler is not None and ckpt.get("scaler_state_dict") is not None:
+            self.scaler.load_state_dict(ckpt["scaler_state_dict"])
+
+        self._resume_step = int(ckpt.get("step", 0))
+        val = ckpt.get("val_metrics")
+        if isinstance(val, dict):
+            v = float(val.get("loss", float("inf")))
+            if math.isfinite(v):
+                self._best_val = v
+                self._best_step = self._resume_step
+                self._early_stop_best_val = v
+
+        history_path = self.cfg.out_dir / "train_history.json"
+        if history_path.exists():
+            try:
+                self.history = json.loads(history_path.read_text())
+            except json.JSONDecodeError:
+                logger.warning("Could not parse existing train history: %s", history_path)
+        self.history.append(
+            {"step": self._resume_step, "event": "resume", "checkpoint": str(ckpt_path)}
+        )
+        logger.info("Resumed checkpoint %s at step=%d", ckpt_path, self._resume_step)
+        return self._resume_step
 
     def _step(self, batch: dict) -> dict[str, float]:
         self.model.train()
@@ -157,12 +190,17 @@ class Trainer:
 
     def fit(self) -> None:
         torch.manual_seed(self.cfg.seed)
+        if self._resume_step >= self.cfg.n_steps:
+            raise ValueError(
+                f"Checkpoint step {self._resume_step} is already >= target "
+                f"n_steps {self.cfg.n_steps}. Increase --n-steps to continue."
+            )
         train_loader = self.loaders["train"]
         train_iter = iter(train_loader)
 
         t0 = time.time()
-        last_step = 0
-        for step in range(1, self.cfg.n_steps + 1):
+        last_step = self._resume_step
+        for step in range(self._resume_step + 1, self.cfg.n_steps + 1):
             last_step = step
             try:
                 batch = next(train_iter)
@@ -272,6 +310,7 @@ class Trainer:
                 "model_state_dict": self.model.state_dict(),
                 "optimizer_state_dict": self.optimizer.state_dict(),
                 "scheduler_state_dict": self.scheduler.state_dict(),
+                "scaler_state_dict": self.scaler.state_dict() if self.scaler is not None else None,
                 "step": step,
                 "val_metrics": val,
             },
