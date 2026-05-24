@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -30,6 +31,10 @@ class TrainConfig:
     size: str
     n_steps: int = 5000
     eval_every: int = 500
+    val_max_batches: int | None = 20
+    checkpoint_every: int | None = 0
+    early_stopping_patience: int | None = 0
+    early_stopping_min_delta: float = 0.0
     warmup_steps: int = 200
     lr: float = 3e-4
     weight_decay: float = 0.01
@@ -81,6 +86,9 @@ class Trainer:
         )
         self.history: list[dict] = []
         self._best_val = float("inf")
+        self._best_step = 0
+        self._early_stop_best_val = float("inf")
+        self._bad_eval_count = 0
         self.cfg.out_dir = Path(cfg.out_dir)
         self.cfg.out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -149,7 +157,9 @@ class Trainer:
         train_iter = iter(train_loader)
 
         t0 = time.time()
+        last_step = 0
         for step in range(1, self.cfg.n_steps + 1):
+            last_step = step
             try:
                 batch = next(train_iter)
             except StopIteration:
@@ -168,27 +178,82 @@ class Trainer:
                 if self.wandb:
                     self.wandb.log({"train/" + k: v for k, v in metrics.items()}, step=step)
 
+            val: dict[str, float] | None = None
             if step % self.cfg.eval_every == 0 or step == self.cfg.n_steps:
-                val = self.evaluate("val", max_batches=20)
+                val = self.evaluate("val", max_batches=self.cfg.val_max_batches)
                 logger.info("step=%d val=%s", step, val)
                 rec = {"step": step, **{"val_" + k: v for k, v in val.items()}}
                 self.history.append(rec)
                 if self.wandb:
                     self.wandb.log({"val/" + k: v for k, v in val.items()}, step=step)
-                self._maybe_save_best(val, step)
+                improved = self._maybe_save_best(val, step)
+                if self._should_save_periodic(step):
+                    self._save_checkpoint(f"step_{step:06d}.pt", step=step, val=val)
+                if self._should_stop_early(improved, step, val):
+                    break
 
-        self._save_final()
+            elif self._should_save_periodic(step):
+                self._save_checkpoint(f"step_{step:06d}.pt", step=step, val=val)
+
+        self._save_final(step=last_step)
         if self.wandb:
             self.wandb.finish()
 
-    def _maybe_save_best(self, val_metrics: dict[str, float], step: int) -> None:
+    def _maybe_save_best(self, val_metrics: dict[str, float], step: int) -> bool:
         v = val_metrics.get("loss", float("inf"))
-        if v < self._best_val:
+        improved_for_patience = self._is_meaningful_val_improvement(v)
+        if improved_for_patience:
+            self._early_stop_best_val = v
+        if math.isfinite(v) and v < self._best_val:
             self._best_val = v
+            self._best_step = step
             self._save_checkpoint("best.pt", step=step, val=val_metrics)
+        return improved_for_patience
 
-    def _save_final(self) -> None:
-        self._save_checkpoint("final.pt", step=self.cfg.n_steps, val=None)
+    def _is_meaningful_val_improvement(self, value: float) -> bool:
+        return math.isfinite(value) and value < self._early_stop_best_val - max(
+            0.0, self.cfg.early_stopping_min_delta
+        )
+
+    def _should_stop_early(self, improved: bool, step: int, val_metrics: dict[str, float]) -> bool:
+        patience = self.cfg.early_stopping_patience
+        if patience is None or patience <= 0:
+            return False
+        if improved:
+            self._bad_eval_count = 0
+            return False
+
+        self._bad_eval_count += 1
+        if self._bad_eval_count < patience:
+            return False
+
+        logger.info(
+            "Early stopping at step=%d: no val loss improvement >= %.4g for %d evals "
+            "(best %.6f at step %d)",
+            step,
+            self.cfg.early_stopping_min_delta,
+            patience,
+            self._best_val,
+            self._best_step,
+        )
+        self.history.append(
+            {
+                "step": step,
+                "event": "early_stop",
+                "best_step": self._best_step,
+                "best_val_loss": self._best_val,
+                "bad_eval_count": self._bad_eval_count,
+                **{"val_" + k: v for k, v in val_metrics.items()},
+            }
+        )
+        return True
+
+    def _should_save_periodic(self, step: int) -> bool:
+        interval = self.cfg.checkpoint_every
+        return interval is not None and interval > 0 and step % interval == 0
+
+    def _save_final(self, *, step: int) -> None:
+        self._save_checkpoint("final.pt", step=step, val=None)
         with (self.cfg.out_dir / "train_history.json").open("w") as fh:
             json.dump(self.history, fh, indent=2)
         with (self.cfg.out_dir / "train_config.json").open("w") as fh:

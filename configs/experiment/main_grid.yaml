@@ -9,6 +9,10 @@ base:
     batch_size: 128
     n_steps: 30000
     eval_every: 1000
+    val_max_batches: 100
+    checkpoint_every: 5000
+    early_stopping_patience: 8
+    early_stopping_min_delta: 0.005
     warmup_steps: 1000
     lr: 3.0e-4
     weight_decay: 0.01

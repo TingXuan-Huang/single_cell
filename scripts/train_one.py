@@ -26,6 +26,14 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger(__name__)
 
 
+def _optional_int(value, default: int | None = None) -> int | None:
+    if value is None:
+        return None
+    if value == "":
+        return default
+    return int(value)
+
+
 def _build_tokenizer(encoder_cfg: dict, manifest, hvg_indices=None):
     from cellfm.tokenizers import ENCODERS
     from cellfm.tokenizers.base import TokenizerConfig
@@ -93,6 +101,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--out-dir", required=True, type=Path)
     p.add_argument("--batch-size", type=int, default=None)
     p.add_argument("--n-steps", type=int, default=None)
+    p.add_argument("--val-max-batches", type=int, default=None)
+    p.add_argument("--checkpoint-every", type=int, default=None)
+    p.add_argument("--early-stopping-patience", type=int, default=None)
+    p.add_argument("--early-stopping-min-delta", type=float, default=None)
     p.add_argument("--lr", type=float, default=None)
     p.add_argument("--seed", type=int, default=None)
     p.add_argument("--num-workers", type=int, default=2)
@@ -112,6 +124,12 @@ def main(argv: list[str] | None = None) -> int:
     # CLI overrides
     if args.batch_size is not None: train_cfg["batch_size"] = args.batch_size
     if args.n_steps is not None: train_cfg["n_steps"] = args.n_steps
+    if args.val_max_batches is not None: train_cfg["val_max_batches"] = args.val_max_batches
+    if args.checkpoint_every is not None: train_cfg["checkpoint_every"] = args.checkpoint_every
+    if args.early_stopping_patience is not None:
+        train_cfg["early_stopping_patience"] = args.early_stopping_patience
+    if args.early_stopping_min_delta is not None:
+        train_cfg["early_stopping_min_delta"] = args.early_stopping_min_delta
     if args.lr is not None: train_cfg["lr"] = args.lr
     if args.seed is not None: train_cfg["seed"] = args.seed
     if args.wandb_project is not None: train_cfg["wandb_project"] = args.wandb_project
@@ -147,6 +165,10 @@ def main(argv: list[str] | None = None) -> int:
         size=model_cfg["name"],
         n_steps=int(train_cfg.get("n_steps", 5000)),
         eval_every=int(train_cfg.get("eval_every", 500)),
+        val_max_batches=_optional_int(train_cfg.get("val_max_batches", 20)),
+        checkpoint_every=_optional_int(train_cfg.get("checkpoint_every", 0)),
+        early_stopping_patience=_optional_int(train_cfg.get("early_stopping_patience", 0)),
+        early_stopping_min_delta=float(train_cfg.get("early_stopping_min_delta", 0.0)),
         warmup_steps=int(train_cfg.get("warmup_steps", 200)),
         lr=float(train_cfg.get("lr", 3e-4)),
         weight_decay=float(train_cfg.get("weight_decay", 0.01)),

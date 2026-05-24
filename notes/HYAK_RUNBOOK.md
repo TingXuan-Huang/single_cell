@@ -192,8 +192,13 @@ sbatch slurm/train_array.sbatch
 
 `slurm/train_array.sbatch` is a SLURM array job (`--array=0-15`, 4 encoders ×
 4 sizes). Each task trains one (encoder, size) combination for `n_steps`
-(default 5000 ≈ 30 min on a single A40). `tiny_10m` drops batch size to 64
+(default 30000, with early stopping enabled). `tiny_10m` drops batch size to 64
 via `batch_size_for_size` in `_runs.sh` to fit a 48 GB A40 at L=2048.
+The default training config evaluates every 1000 steps on 100 validation
+batches, saves interval checkpoints every 5000 steps, and stops early after 8
+validation evals without a loss improvement of at least 0.005. For deliberate
+long-run/grokking probes, set `early_stopping_patience: 0` in a separate train
+config.
 
 Monitor:
 
@@ -209,6 +214,8 @@ Per-run outputs land under
 ```
 final.pt
 best.pt
+step_005000.pt
+step_010000.pt
 train_history.json
 train_config.json
 ```
