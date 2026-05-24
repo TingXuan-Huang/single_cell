@@ -1,0 +1,8 @@
+name: value_bin
+add_cls: true
+mask_ratio: 0.15
+n_bins: 51                # locked: 51 bins to match scGPT
+log1p_normalize: true
+target_sum: 1.0e4
+mlm_weight: 1.0
+ce_weight: 0.5

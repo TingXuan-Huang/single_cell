@@ -1,0 +1,12 @@
+name: tiny_1m
+# Targets ~1M parameters in the transformer body. The gene-embedding table
+# scales with vocab and is reported separately in train_config.json.
+d_model: 128
+n_layers: 2
+n_heads: 4
+ffn_mult: 4
+dropout: 0.1
+
+# MLP baselines reuse these settings:
+mlp_hidden: [256, 256]
+mlp_d_embed: 128

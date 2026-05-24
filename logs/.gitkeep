@@ -1,0 +1,2 @@
+# Placeholder so `slurm/*.sbatch` --output=logs/... paths resolve in a
+# fresh clone before any job has run.

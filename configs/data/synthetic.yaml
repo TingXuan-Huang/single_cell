@@ -1,0 +1,37 @@
+# Synthetic dataset config used for smoke tests + local CI.
+
+name: synthetic_small
+synthetic:
+  n_cells: 2000
+  n_genes: 1000
+  n_subclasses: 6
+  n_donors: 8
+  sparsity: 0.92
+  seed: 0
+
+cache_dir: data/cache/synthetic_small
+
+label_col: subclass
+
+qc:
+  min_nnz: 20
+  max_pct_mt: 100.0
+  max_doublet_score: 1.0
+
+splits:
+  strategy: donor_stratified
+  donor_col: donor_label
+  val_frac: 0.15
+  test_frac: 0.15
+  seed: 0
+
+hvg:
+  method: variance
+  n_top: 200
+
+seq_length:
+  policy: pctile_pow2
+  pctile: 95
+  power_of_two: true
+  cap_min: 128
+  cap_max: 512

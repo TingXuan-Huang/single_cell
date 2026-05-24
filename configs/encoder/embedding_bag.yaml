@@ -1,0 +1,8 @@
+name: embedding_bag
+log1p_normalize: true
+target_sum: 1.0e4
+# Reconstruction self-supervised objective: zero-out fraction of nonzero genes,
+# predict their log1p values from the bag embedding.
+mask_ratio: 0.15
+mlm_weight: 1.0
+ce_weight: 1.0

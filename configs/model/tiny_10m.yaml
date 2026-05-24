@@ -1,0 +1,13 @@
+name: tiny_10m
+# Targets ~10M parameters in the transformer body (rank/value_bin encoders).
+# Body params: 12 * d_model^2 per layer = 12 * 320^2 * 8 ≈ 9.8M -> ~10.5M with norms/proj.
+# head_dim = d_model / n_heads = 40 (still small enough for SDPA fast path).
+d_model: 320
+n_layers: 8
+n_heads: 8
+ffn_mult: 4
+dropout: 0.1
+
+# MLP baselines reuse these settings:
+mlp_hidden: [640, 640, 640, 640, 640]
+mlp_d_embed: 320

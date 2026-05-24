@@ -1,0 +1,13 @@
+name: tiny_5m
+# Targets ~5M parameters in the transformer body (rank/value_bin encoders).
+# Body params: 4 * d_model^2 (attn) + 8 * d_model^2 (ffn at ffn_mult=4)
+#            = 12 * d_model^2 per layer = 12 * 256^2 * 6 ≈ 4.7M -> ~5.2M with norms/proj.
+d_model: 256
+n_layers: 6
+n_heads: 8
+ffn_mult: 4
+dropout: 0.1
+
+# MLP baselines reuse these settings:
+mlp_hidden: [512, 512, 512, 512]
+mlp_d_embed: 256

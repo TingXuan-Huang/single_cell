@@ -1,0 +1,60 @@
+# Allen Brain Cell - WMB-10X scRNA-seq, isocortex slice.
+# This config is used by scripts/build_cache.py on the UW Hyak cluster.
+
+name: wmb_isocortex
+release: "20240831"            # adjust to the active ABC release on Hyak
+region: isocortex
+
+# Source AnnData on disk. The Allen download step (`slurm/download.sbatch`)
+# produces several per-region shards (Isocortex-1, Isocortex-2, ...) under
+# `data/raw/abc/expression_matrices/...`. `input_h5ad_glob` matches all of
+# them and `build_cache.py` concatenates them along the cell axis on the fly.
+#
+# Use `input_h5ad` instead if you've already pre-merged them to a single file.
+input_h5ad_glob: /gscratch/PROJECT_GROUP/data/raw/abc/expression_matrices/WMB-10X*/*/WMB-10X*-Isocortex-*-raw.h5ad
+
+# Output cache directory (sparse npz + parquet shards).
+cache_dir: /gscratch/PROJECT_GROUP/data/cache/wmb_isocortex_v1
+
+# Allen cell metadata CSV. `build_cache.py` left-joins this onto adata.obs
+# before QC + splitting so that `donor_col` and `label_col` resolve. The
+# release-date segment in the path is set by the active manifest at download.
+metadata_csv: /gscratch/PROJECT_GROUP/data/raw/abc/metadata/WMB-10X/20241115/cell_metadata_with_cluster_annotation.csv
+
+# Defense-in-depth region filter applied after metadata attach.
+region_filter:
+  keyword: Isocortex
+  column: region_of_interest_label
+
+# Labels: WMB taxonomy column to predict.
+label_col: subclass            # finer than 'class'; coarser than 'cluster'
+
+# QC thresholds (locked v1).
+qc:
+  min_nnz: 500                 # minimum non-zero genes per cell
+  max_pct_mt: 10.0             # max % mitochondrial reads
+  max_doublet_score: 0.20      # if a doublet score column is present
+
+# Splits (locked v1: 70/15/15, seed=0, donor-stratified).
+# `donor_col` matches the Allen WMB-10X cell_metadata column name.
+splits:
+  strategy: donor_stratified   # holds entire donors out per split
+  donor_col: donor_label
+  val_frac: 0.15
+  test_frac: 0.15
+  seed: 0
+
+# Highly variable genes (locked v1).
+hvg:
+  method: scanpy_seurat_v3     # fallback: variance-of-log1p if scanpy unavailable
+  n_top: 2000
+  flavor_kwargs:
+    n_top_genes: 2000
+
+# Sequence length policy (locked v1).
+seq_length:
+  policy: pctile_pow2
+  pctile: 95
+  power_of_two: true
+  cap_min: 1024
+  cap_max: 2048

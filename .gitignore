@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# Data (large, regenerable)
+data/raw/
+data/cache/
+data/processed/
+*.h5ad
+*.h5
+*.parquet
+*.npz
+*.npy
+
+# Logs and runs
+wandb/
+slurm/logs/
+runs/
+checkpoints/
+*.ckpt
+*.pt
+
+# Editor
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Notebooks
+.ipynb_checkpoints/
+*.ipynb
+!notes/**/*.ipynb
+
+# Notes figures may be tracked or not — uncomment to ignore
+# notes/figures/*.png

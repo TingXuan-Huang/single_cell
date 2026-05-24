@@ -1,0 +1,56 @@
+# Main 4x4 comparison grid + PCA-64 and scVI-32 baselines.
+# Each entry maps to one row in the final comparison table.
+# The runner script loads cache_dir / encoder / model / shared training defaults.
+
+base:
+  data: configs/data/wmb_isocortex.yaml
+  out_root: /gscratch/PROJECT_GROUP/runs/cellfm/v1
+  train:
+    batch_size: 128
+    n_steps: 30000
+    eval_every: 1000
+    warmup_steps: 1000
+    lr: 3.0e-4
+    weight_decay: 0.01
+    grad_clip: 1.0
+    amp: true
+    seed: 0
+    wandb_project: cellfm-v1
+
+# Per-size training overrides applied by slurm/train_array.sbatch via --batch-size flag.
+# tiny_10m drops to batch_size=64 to fit a single A40 (48 GB) at L=2048 (F3 mitigation).
+# Authoritative: this block is the source of truth; slurm scripts mirror it. Keep in sync.
+train_overrides_by_size:
+  tiny_1m:  {batch_size: 128}
+  tiny_3m:  {batch_size: 128}
+  tiny_5m:  {batch_size: 128}
+  tiny_10m: {batch_size: 64}
+
+# 4 encoders × 4 sizes = 16 runs. SLURM array index = position in this list.
+# Order matters: slurm/train_array.sbatch and slurm/eval_array.sbatch read the same
+# (encoder, size) sequence — see slurm/_runs.sh for the shared helper.
+runs:
+  # tiny_1m
+  - {id: hvg_dense_tiny_1m,      encoder: hvg_dense,     size: tiny_1m}
+  - {id: embedding_bag_tiny_1m,  encoder: embedding_bag, size: tiny_1m}
+  - {id: rank_tiny_1m,           encoder: rank,          size: tiny_1m}
+  - {id: value_bin_tiny_1m,      encoder: value_bin,     size: tiny_1m}
+  # tiny_3m
+  - {id: hvg_dense_tiny_3m,      encoder: hvg_dense,     size: tiny_3m}
+  - {id: embedding_bag_tiny_3m,  encoder: embedding_bag, size: tiny_3m}
+  - {id: rank_tiny_3m,           encoder: rank,          size: tiny_3m}
+  - {id: value_bin_tiny_3m,      encoder: value_bin,     size: tiny_3m}
+  # tiny_5m
+  - {id: hvg_dense_tiny_5m,      encoder: hvg_dense,     size: tiny_5m}
+  - {id: embedding_bag_tiny_5m,  encoder: embedding_bag, size: tiny_5m}
+  - {id: rank_tiny_5m,           encoder: rank,          size: tiny_5m}
+  - {id: value_bin_tiny_5m,      encoder: value_bin,     size: tiny_5m}
+  # tiny_10m
+  - {id: hvg_dense_tiny_10m,     encoder: hvg_dense,     size: tiny_10m}
+  - {id: embedding_bag_tiny_10m, encoder: embedding_bag, size: tiny_10m}
+  - {id: rank_tiny_10m,          encoder: rank,          size: tiny_10m}
+  - {id: value_bin_tiny_10m,     encoder: value_bin,     size: tiny_10m}
+
+baselines:
+  - {id: pca64,  type: pca,  n_components: 64}
+  - {id: scvi32, type: scvi, n_latent: 32, n_layers: 2, n_hidden: 256}

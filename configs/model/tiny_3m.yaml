@@ -1,0 +1,10 @@
+name: tiny_3m
+# Targets ~3M parameters in the transformer body.
+d_model: 192
+n_layers: 4
+n_heads: 6
+ffn_mult: 4
+dropout: 0.1
+
+mlp_hidden: [384, 384, 384]
+mlp_d_embed: 192

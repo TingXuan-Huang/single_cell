@@ -1,0 +1,5 @@
+name: hvg_dense
+log1p_normalize: true
+target_sum: 1.0e4
+# No masking; supervised baseline.
+mask_ratio: 0.0

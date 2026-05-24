@@ -1,0 +1,5 @@
+name: rank
+add_cls: true
+mask_ratio: 0.15
+mlm_weight: 1.0
+ce_weight: 0.5
