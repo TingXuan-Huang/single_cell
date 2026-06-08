@@ -49,7 +49,9 @@ skills/
 # Notebooks
 .ipynb_checkpoints/
 *.ipynb
+!notebooks/cellfm_download_colab.ipynb
 !notes/**/*.ipynb
 
 # Notes figures may be tracked or not — uncomment to ignore
 # notes/figures/*.png
+.gstack/
