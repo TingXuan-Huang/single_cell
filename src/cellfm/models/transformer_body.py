@@ -23,6 +23,7 @@ class BodyConfig:
     max_len: int = 2048
 
 
+# fusion: model = MultiHeadSelfAttention(128, 4, 0.1)
 class MultiHeadSelfAttention(nn.Module):
     def __init__(self, d_model: int, n_heads: int, dropout: float):
         super().__init__()
@@ -35,6 +36,7 @@ class MultiHeadSelfAttention(nn.Module):
         self.proj = nn.Linear(d_model, d_model, bias=True)
         self.dropout = nn.Dropout(dropout)
 
+    # fusion: input = (torch.randn(2, 8, 128), torch.randint(0, 2, (2, 8)).bool())
     def forward(self, x: torch.Tensor, attn_mask: torch.Tensor | None) -> torch.Tensor:
         # x: (B, L, D), attn_mask: (B, L) bool, True = valid position (attend to it).
         B, L, D = x.shape
@@ -62,6 +64,7 @@ class MultiHeadSelfAttention(nn.Module):
         return out
 
 
+# fusion: model = FeedForward(128, 4, 0.1)
 class FeedForward(nn.Module):
     def __init__(self, d_model: int, ffn_mult: int, dropout: float):
         super().__init__()
@@ -70,10 +73,12 @@ class FeedForward(nn.Module):
         self.fc2 = nn.Linear(hidden, d_model)
         self.dropout = nn.Dropout(dropout)
 
+    # fusion: input = torch.randn(2, 8, 128)
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.dropout(self.fc2(F.gelu(self.fc1(x))))
 
 
+# fusion: model = TransformerBlock(BodyConfig())
 class TransformerBlock(nn.Module):
     def __init__(self, cfg: BodyConfig):
         super().__init__()
@@ -81,13 +86,16 @@ class TransformerBlock(nn.Module):
         self.attn = MultiHeadSelfAttention(cfg.d_model, cfg.n_heads, cfg.dropout)
         self.norm2 = nn.LayerNorm(cfg.d_model)
         self.ffn = FeedForward(cfg.d_model, cfg.ffn_mult, cfg.dropout)
+# fusion: input = (torch.randn(2, 8, 128), torch.randint(0, 2, (2, 8)).bool())
 
+    # fusion: input = (torch.randn(2, 8, 128), torch.randint(0, 2, (2, 8)).bool())
     def forward(self, x: torch.Tensor, attn_mask: torch.Tensor | None) -> torch.Tensor:
         x = x + self.attn(self.norm1(x), attn_mask)
         x = x + self.ffn(self.norm2(x))
         return x
 
 
+# fusion: model = TransformerEncoder(BodyConfig())
 class TransformerEncoder(nn.Module):
     """Stack of pre-norm transformer blocks."""
 
@@ -95,6 +103,7 @@ class TransformerEncoder(nn.Module):
         super().__init__()
         self.cfg = cfg
         self.blocks = nn.ModuleList([TransformerBlock(cfg) for _ in range(cfg.n_layers)])
+        # fusion: input = (torch.randn(2, 8, 128), torch.randint(0, 2, (2, 8)).bool())
         self.norm = nn.LayerNorm(cfg.d_model)
 
     def forward(

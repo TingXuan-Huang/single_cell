@@ -31,6 +31,7 @@ class EmbeddingBagConfig:
     ce_weight: float = 1.0
 
 
+# fusion: model = EmbeddingBagMLP(EmbeddingBagConfig(n_genes=1000, n_classes=10))
 class EmbeddingBagMLP(nn.Module):
     name = "embedding_bag"
 
@@ -56,15 +57,18 @@ class EmbeddingBagMLP(nn.Module):
     @property
     def d_embedding(self) -> int:
         return self.cfg.hidden_dims[-1]
+# fusion: input = {"indices": torch.randint(0, 1000, (100,)), "offsets": torch.arange(0, 100, 10), "per_sample_weights": torch.randn(100)}
 
     def _bag_embed(self, batch: dict) -> torch.Tensor:
         return self.bag(
             input=batch["indices"],
             offsets=batch["offsets"],
             per_sample_weights=batch["per_sample_weights"],
+        # fusion: input = {"indices": torch.randint(0, 1000, (10,)), "offsets": torch.tensor([0, 5], dtype=torch.long), "per_sample_weights": torch.randn(10)}
         )
 
     def extract_embedding(self, batch: dict) -> torch.Tensor:
+        # fusion: input = {"indices": torch.randint(0, 1000, (32,)), "offsets": torch.tensor([0, 4, 8, 12, 16, 20, 24, 28]), "per_sample_weights": torch.randn(32), "labels": torch.randint(0, 10, (8,)), "masked_cells": torch.randint(0, 8, (5,)), "masked_genes": torch.randint(0, 1000, (5,)), "masked_values": torch.randn(5)}
         z = self._bag_embed(batch)
         return self.trunk(z)
 

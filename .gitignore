@@ -40,12 +40,6 @@ checkpoints/
 *.swp
 .DS_Store
 
-# Local agent/tooling files
-.claude/
-.agents/skills/
-skills/
-.codex/skills/
-
 # Notebooks
 .ipynb_checkpoints/
 *.ipynb
